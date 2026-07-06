@@ -145,40 +145,36 @@ PROMPT;
      * @return array Parsed transaction data
      * @throws \Exception If API call fails or response is not valid JSON
      */
-    public function parseText(string $text): array
-    {
-        $response = Http::timeout(30)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}",
-            [
-                'system_instruction' => [
+   public function parseText(string $text): array
+{
+    $response = Http::timeout(30)->post(
+        "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}",
+        [
+            'system_instruction' => [
+                'parts' => [
+                    ['text' => self::TEXT_SYSTEM_PROMPT],
+                ],
+            ],
+            'contents' => [
+                [
                     'parts' => [
-                        ['text' => self::TEXT_SYSTEM_PROMPT],
+                        ['text' => $text],
                     ],
                 ],
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $text],
-                        ],
-                    ],
-                ],
-                'generationConfig' => [
-                    'temperature' => 0.1,
-                    'maxOutputTokens' => 500,
-                ],
-            ]
-        );
+            ],
+            'generationConfig' => [
+                'temperature' => 0.1,
+                'maxOutputTokens' => 500,
+            ],
+        ]
+    );
 
-        if ($response->failed()) {
-            Log::error('Gemini API text parsing failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            throw new \Exception($this->getErrorMessage($response));
-        }
-
-        return $this->extractJson($response->json());
+    if ($response->failed()) {
+        abort($response->status(), $response->body());
     }
+
+    return $this->extractJson($response->json());
+}
 
     /**
      * Parse receipt image into structured transaction data via Gemini Vision API.
@@ -188,48 +184,44 @@ PROMPT;
      * @return array Parsed receipt data
      * @throws \Exception If API call fails or response is not valid JSON
      */
-    public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg'): array
-    {
-        $response = Http::timeout(60)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$this->visionModel}:generateContent?key={$this->apiKey}",
-            [
-                'system_instruction' => [
-                    'parts' => [
-                        ['text' => self::RECEIPT_SYSTEM_PROMPT],
-                    ],
+public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg'): array
+{
+    $response = Http::timeout(60)->post(
+        "https://generativelanguage.googleapis.com/v1beta/models/{$this->visionModel}:generateContent?key={$this->apiKey}",
+        [
+            'system_instruction' => [
+                'parts' => [
+                    ['text' => self::RECEIPT_SYSTEM_PROMPT],
                 ],
-                'contents' => [
-                    [
-                        'parts' => [
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data' => $base64Image,
-                                ],
+            ],
+            'contents' => [
+                [
+                    'parts' => [
+                        [
+                            'inline_data' => [
+                                'mime_type' => $mimeType,
+                                'data' => $base64Image,
                             ],
-                            [
-                                'text' => 'Baca struk ini dan balas dengan JSON.',
-                            ],
+                        ],
+                        [
+                            'text' => 'Baca struk ini dan balas dengan JSON.',
                         ],
                     ],
                 ],
-                'generationConfig' => [
-                    'temperature' => 0.1,
-                    'maxOutputTokens' => 2000,
-                ],
-            ]
-        );
+            ],
+            'generationConfig' => [
+                'temperature' => 0.1,
+                'maxOutputTokens' => 2000,
+            ],
+        ]
+    );
 
-        if ($response->failed()) {
-            Log::error('Gemini API receipt parsing failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            throw new \Exception($this->getErrorMessage($response));
-        }
-
-        return $this->extractJson($response->json());
+    if ($response->failed()) {
+        abort($response->status(), $response->body());
     }
+
+    return $this->extractJson($response->json());
+}
 
     public function generateRecapSummary(array $transactions, string $userName): string
     {
