@@ -145,29 +145,34 @@ PROMPT;
      * @return array Parsed transaction data
      * @throws \Exception If API call fails or response is not valid JSON
      */
-   public function parseText(string $text): array
+  public function parseText(string $text): array
 {
-    $response = Http::timeout(30)->post(
-        "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}",
-        [
-            'system_instruction' => [
-                'parts' => [
-                    ['text' => self::TEXT_SYSTEM_PROMPT],
-                ],
-            ],
-            'contents' => [
-                [
+    $response = Http::withHeaders([
+            'X-goog-api-key' => $this->apiKey,
+            'Content-Type' => 'application/json',
+        ])
+        ->timeout(30)
+        ->post(
+            "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent",
+            [
+                'system_instruction' => [
                     'parts' => [
-                        ['text' => $text],
+                        ['text' => self::TEXT_SYSTEM_PROMPT],
                     ],
                 ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'maxOutputTokens' => 500,
-            ],
-        ]
-    );
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $text],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => 500,
+                ],
+            ]
+        );
 
     if ($response->failed()) {
         abort($response->status(), $response->body());
@@ -186,35 +191,40 @@ PROMPT;
      */
 public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg'): array
 {
-    $response = Http::timeout(60)->post(
-        "https://generativelanguage.googleapis.com/v1beta/models/{$this->visionModel}:generateContent?key={$this->apiKey}",
-        [
-            'system_instruction' => [
-                'parts' => [
-                    ['text' => self::RECEIPT_SYSTEM_PROMPT],
-                ],
-            ],
-            'contents' => [
-                [
+    $response = Http::withHeaders([
+            'X-goog-api-key' => $this->apiKey,
+            'Content-Type' => 'application/json',
+        ])
+        ->timeout(60)
+        ->post(
+            "https://generativelanguage.googleapis.com/v1beta/models/{$this->visionModel}:generateContent",
+            [
+                'system_instruction' => [
                     'parts' => [
-                        [
-                            'inline_data' => [
-                                'mime_type' => $mimeType,
-                                'data' => $base64Image,
+                        ['text' => self::RECEIPT_SYSTEM_PROMPT],
+                    ],
+                ],
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'inline_data' => [
+                                    'mime_type' => $mimeType,
+                                    'data' => $base64Image,
+                                ],
                             ],
-                        ],
-                        [
-                            'text' => 'Baca struk ini dan balas dengan JSON.',
+                            [
+                                'text' => 'Baca struk ini dan balas dengan JSON.',
+                            ],
                         ],
                     ],
                 ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'maxOutputTokens' => 2000,
-            ],
-        ]
-    );
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => 2000,
+                ],
+            ]
+        );
 
     if ($response->failed()) {
         abort($response->status(), $response->body());
