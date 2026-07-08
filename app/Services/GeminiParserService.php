@@ -19,6 +19,7 @@ ATURAN UTAMA:
 1. Jangan mengarang data yang tidak eksplisit ada di kalimat.
 2. Jangan pernah membalas dengan pertanyaan.
 3. Balas HANYA dengan JSON, tanpa teks pembuka, penutup, atau format Markdown (tanpa ```).
+4. Jika kalimat mengandung LEBIH DARI SATU transaksi (misal: tagih tunai + ongkir, atau beli A dan beli B), BALAS DENGAN ARRAY JSON berisi semua transaksi. Jika hanya satu transaksi, balas dengan object JSON biasa (bukan array).
 
 FIELD YANG HARUS DIISI:
 
@@ -31,8 +32,8 @@ Jika "intent" adalah "recap", field lainnya tidak perlu diisi, cukup: {"intent":
 Jika "intent" adalah "transaction", isi field berikut:
 
 "jenis" (wajib)
-- "masuk" jika ada kata: masuk, dapat, terima, gajian, gaji
-- "keluar" jika ada kata: keluar, beli, bayar, belanja
+- "masuk" jika ada kata: masuk, dapat, terima, gajian, gaji, ongkir (ongkir = pemasukan bagi driver)
+- "keluar" jika ada kata: keluar, beli, bayar, belanja, tagih tunai (tagih tunai = Shopee memotong saldo driver)
 
 "nominal" (wajib)
 - Angka Rupiah, integer, tanpa titik/koma.
@@ -47,25 +48,41 @@ Jika "intent" adalah "transaction", isi field berikut:
 - "Gaji": gajian, gaji, upah, honor
 - "Investasi": bitcoin, crypto, saham, emas, investasi, trading, reksadana
 - "Belanja Harian": belanja, beli, indomaret, alfamart, toko, pasar
-- "Pendapatan Usaha": orderan, jualan, dagangan, klien, proyek
+- "Pendapatan Usaha": orderan, jualan, dagangan, klien, proyek, ongkir, tagih tunai
 - "Lainnya": jika tidak ada kata kunci yang cocok
 
-"dompet" (wajib) — deteksi dari kata kunci, default "Cash" jika tidak disebutkan:
-- "Cash": tidak ada kata dompet spesifik (default)
-- "Dana": kata "dana"
-- "GoPay": kata "gopay", "go-pay"
-- "OVO": kata "ovo"
-- "ShopeePay": kata "shopeepay", "shopee pay"
-- "Bank": kata "bank", "transfer", "rekening", "m-banking"
-- "Kartu Kredit": kata "kartu kredit", "kredit", "cc"
-- Jika ada nama dompet lain yang eksplisit disebut, gunakan nama tersebut apa adanya (title case)
+"dompet" (wajib) — deteksi dari kata kunci, PRIORITAS dari atas ke bawah:
+PENTING: Cek nama bank/dompet SPESIFIK terlebih dahulu sebelum fallback ke generik.
+
+1. Nama e-wallet spesifik:
+   - "Dana": kata "dana"
+   - "GoPay": kata "gopay", "go-pay"
+   - "OVO": kata "ovo"
+   - "ShopeePay": kata "shopeepay", "shopee pay", "shopee", "shope" (konteks driver/pembayaran)
+   - "Kaspro": kata "kaspro"
+
+2. Nama bank spesifik (cek ini SEBELUM fallback ke "Bank"):
+   - "BCA": kata "bca", "bank central asia"
+   - "BRI": kata "bri", "bank rakyat"
+   - "BNI": kata "bni", "bank negara"
+   - "Mandiri": kata "mandiri"
+   - "BSI": kata "bsi", "bank syariah"
+   - "CIMB": kata "cimb"
+   - "Danamon": kata "danamon"
+   - "Permata": kata "permata"
+   - Nama bank lain yang eksplisit disebut, gunakan nama singkatnya (contoh: "BCA", "Mandiri")
+
+3. Generik (hanya jika TIDAK ada nama spesifik):
+   - "Bank": kata "bank", "transfer", "rekening", "m-banking" — HANYA jika tidak ada nama bank spesifik
+   - "Kartu Kredit": kata "kartu kredit", "kredit", "cc"
+   - "Cash": default jika tidak ada kata dompet sama sekali
 
 "item" (opsional, kosongkan "" jika tidak ada)
 - Nama barang/aset spesifik yang disebutkan, contoh: "Bitcoin", "Listrik", "Kopi"
 
 "platform" (opsional, kosongkan "" jika tidak ada)
 - Nama aplikasi/layanan pihak ketiga yang disebutkan, contoh: "Triv", "Kaspro", "Shopee"
-- CATATAN: platform BERBEDA dari dompet. Dompet adalah alat bayar (Cash, Dana, Bank). Platform adalah aplikasi/layanan tempat transaksi terjadi (Triv untuk beli kripto, Kaspro untuk terima pembayaran orderan).
+- CATATAN: platform BERBEDA dari dompet. JANGAN isi platform jika sudah sama dengan dompet.
 
 "sumber" (opsional, kosongkan "" jika tidak ada)
 - Asal pemasukan jika BUKAN gaji, contoh: "Orderan", "Jualan", "Transfer teman"
@@ -81,10 +98,16 @@ Output: {"intent":"transaction","jenis":"keluar","nominal":18000,"kategori":"Mak
 Input: "gajian masuk 5jt"
 Output: {"intent":"transaction","jenis":"masuk","nominal":5000000,"kategori":"Gaji","dompet":"Cash","item":"","platform":"","sumber":"","catatan":"Gaji masuk Rp5.000.000"}
 
-Input: "recap hari ini"
-Output: {"intent":"recap"}
+Input: "masuk transfer BCA 10 ribu"
+Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lainnya","dompet":"BCA","item":"","platform":"","sumber":"","catatan":"Transfer masuk BCA Rp10.000"}
 
-Input: "tolong rekapin pengeluaran dong"
+Input: "tagih tunai shope 50 ribu ongkir 8 ribu"
+Output: [{"intent":"transaction","jenis":"keluar","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Tagih tunai Shopee Rp50.000"},{"intent":"transaction","jenis":"masuk","nominal":8000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"Ongkir","catatan":"Ongkir Shopee Rp8.000"}]
+
+Input: "tagih tunai shopee 30rb dan ongkir 5rb"
+Output: [{"intent":"transaction","jenis":"keluar","nominal":30000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Tagih tunai Shopee Rp30.000"},{"intent":"transaction","jenis":"masuk","nominal":5000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"Ongkir","catatan":"Ongkir Shopee Rp5.000"}]
+
+Input: "recap hari ini"
 Output: {"intent":"recap"}
 
 Input: "keluar bayar listrik 100 ribu"
@@ -276,18 +299,21 @@ public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg
 
         // Clean up potential markdown code blocks
         $text = trim($text);
+        $text = preg_replace('/^```json\s*/i', '', $text);
+        $text = preg_replace('/^```\s*/i', '', $text);
+        $text = preg_replace('/\s*```$/i', '', $text);
+        $text = trim($text);
         
-        // Try to find a JSON object via regex first to avoid trailing garbage/truncations
-        if (preg_match('/\{[\s\S]*\}/', $text, $matches)) {
-            $text = $matches[0];
-        } else {
-            $text = preg_replace('/^```json\s*/i', '', $text);
-            $text = preg_replace('/^```\s*/i', '', $text);
-            $text = preg_replace('/\s*```$/i', '', $text);
-            $text = trim($text);
-        }
-
         $parsed = json_decode($text, true);
+
+        // Try to find a JSON array or object via regex if direct parse fails
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            if (preg_match('/\[[\s\S]*\]/', $text, $matches) && is_array(json_decode($matches[0], true))) {
+                $text = $matches[0];
+            } elseif (preg_match('/\{[\s\S]*\}/', $text, $matches) && is_array(json_decode($matches[0], true))) {
+                $text = $matches[0];
+            }
+        }
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             Log::error('Gemini returned invalid JSON', ['raw' => $text]);

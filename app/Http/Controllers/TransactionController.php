@@ -91,6 +91,57 @@ class TransactionController extends Controller
             ], 200);
         }
 
+        // Check if AI returned multiple transactions (array of objects)
+        if (isset($parsed[0]) && is_array($parsed[0])) {
+            $user = $request->user();
+            $transactions = [];
+
+            DB::transaction(function () use ($parsed, $user, $validated, &$transactions) {
+                foreach ($parsed as $item) {
+                    if (empty($item['jenis']) || !in_array($item['jenis'], ['masuk', 'keluar'])) continue;
+                    if (empty($item['nominal']) || !is_numeric($item['nominal']) || $item['nominal'] <= 0) continue;
+
+                    $category = $item['kategori'] ?? 'Lainnya';
+                    if (!in_array($category, self::VALID_CATEGORIES)) {
+                        $category = 'Lainnya';
+                    }
+
+                    $walletName = !empty(trim($item['dompet'] ?? '')) ? trim($item['dompet']) : 'Cash';
+                    $wallet = $this->findOrCreateWallet($user, $walletName);
+
+                    $tx = Transaction::create([
+                        'user_id' => $user->id,
+                        'wallet_id' => $wallet->id,
+                        'type' => $item['jenis'],
+                        'amount' => (int) $item['nominal'],
+                        'category' => $category,
+                        'item' => $this->nullIfEmpty($item['item'] ?? ''),
+                        'platform' => $this->nullIfEmpty($item['platform'] ?? ''),
+                        'source' => $this->nullIfEmpty($item['sumber'] ?? ''),
+                        'note' => $item['catatan'] ?? null,
+                        'raw_input' => $validated['text'],
+                        'source_type' => 'chat',
+                    ]);
+
+                    if ($item['jenis'] === 'masuk') {
+                        $wallet->increment('balance', (int) $item['nominal']);
+                    } else {
+                        $wallet->decrement('balance', (int) $item['nominal']);
+                    }
+
+                    $tx->load('wallet');
+                    $transactions[] = $tx;
+                }
+            });
+
+            return response()->json([
+                'message' => count($transactions) . ' transaksi berhasil dicatat',
+                'transactions' => $transactions,
+                'parsed' => $parsed,
+                'is_multi' => true,
+            ], 201);
+        }
+
         // Validate required fields from AI response
         if (empty($parsed['jenis']) || !in_array($parsed['jenis'], ['masuk', 'keluar'])) {
             return response()->json([
@@ -111,7 +162,7 @@ class TransactionController extends Controller
         }
 
         // Find or create wallet
-        $walletName = $parsed['dompet'] ?? 'Cash';
+        $walletName = !empty(trim($parsed['dompet'] ?? '')) ? trim($parsed['dompet']) : 'Cash';
         $user = $request->user();
         $wallet = $this->findOrCreateWallet($user, $walletName);
 

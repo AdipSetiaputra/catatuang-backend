@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -15,17 +16,20 @@ class DashboardController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $user = $request->user();
-        $today = today();
+        
+        $dateParam = $request->query('date');
+        $targetDate = $dateParam ? Carbon::parse($dateParam)->startOfDay() : today();
+        $targetDateEnd = $targetDate->copy()->endOfDay();
 
-        // Today's transactions
+        // Target date transactions
         $todayTransactions = $user->transactions()
-            ->whereDate('created_at', $today)
+            ->whereDate('created_at', $targetDate)
             ->get();
 
         $totalMasuk = $todayTransactions->where('type', 'masuk')->sum('amount');
         $totalKeluar = $todayTransactions->where('type', 'keluar')->sum('amount');
 
-        // Top categories today (top 4)
+        // Top categories target date (top 4)
         $topCategories = $todayTransactions
             ->groupBy('category')
             ->map(function ($group, $category) {
@@ -45,11 +49,18 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'balance', 'is_default']);
 
-        $totalBalance = $wallets->sum('balance');
+        $totalBalance = 0;
+        foreach ($wallets as $wallet) {
+            $nameLower = strtolower($wallet->name);
+            if (in_array($nameLower, ['cash', 'tunai']) && $wallet->balance < 0) {
+                $wallet->balance = 0;
+            }
+            $totalBalance += $wallet->balance;
+        }
 
-        // Monthly summary (current month)
-        $monthStart = now()->startOfMonth();
-        $monthEnd = now()->endOfMonth();
+        // Monthly summary (month of target date)
+        $monthStart = $targetDate->copy()->startOfMonth();
+        $monthEnd = $targetDate->copy()->endOfMonth();
 
         $monthlyTransactions = $user->transactions()
             ->whereDate('created_at', '>=', $monthStart)
@@ -59,9 +70,9 @@ class DashboardController extends Controller
         $monthlyMasuk = $monthlyTransactions->where('type', 'masuk')->sum('amount');
         $monthlyKeluar = $monthlyTransactions->where('type', 'keluar')->sum('amount');
 
-        // Weekly summary (current week)
-        $weekStart = now()->startOfWeek();
-        $weekEnd = now()->endOfWeek();
+        // Weekly summary (week of target date)
+        $weekStart = $targetDate->copy()->startOfWeek();
+        $weekEnd = $targetDate->copy()->endOfWeek();
 
         $weeklyTransactions = $user->transactions()
             ->whereDate('created_at', '>=', $weekStart)
@@ -71,9 +82,9 @@ class DashboardController extends Controller
         $weeklyMasuk = $weeklyTransactions->where('type', 'masuk')->sum('amount');
         $weeklyKeluar = $weeklyTransactions->where('type', 'keluar')->sum('amount');
 
-        // 7-day chart data
-        $chartStart = now()->subDays(6)->startOfDay();
-        $chartEnd = now()->endOfDay();
+        // 7-day chart data ending at target date
+        $chartStart = $targetDate->copy()->subDays(6)->startOfDay();
+        $chartEnd = $targetDateEnd;
         $chartTransactions = $user->transactions()
             ->whereDate('created_at', '>=', $chartStart)
             ->whereDate('created_at', '<=', $chartEnd)
@@ -81,7 +92,7 @@ class DashboardController extends Controller
 
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
+            $date = $targetDate->copy()->subDays($i);
             $dateString = $date->format('Y-m-d');
             $displayDate = $date->translatedFormat('d M'); // e.g., "25 Jun"
 
@@ -103,6 +114,7 @@ class DashboardController extends Controller
                 'net' => $totalMasuk - $totalKeluar,
                 'transaction_count' => $todayTransactions->count(),
                 'top_categories' => $topCategories,
+                'date' => $targetDate->format('Y-m-d'),
             ],
             'monthly' => [
                 'total_masuk' => $monthlyMasuk,
@@ -120,3 +132,4 @@ class DashboardController extends Controller
         ]);
     }
 }
+
