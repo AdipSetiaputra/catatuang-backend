@@ -26,8 +26,8 @@ class DashboardController extends Controller
             ->whereDate('created_at', $targetDate)
             ->get();
 
-        $totalMasuk = $todayTransactions->where('type', 'masuk')->sum('amount');
-        $totalKeluar = $todayTransactions->where('type', 'keluar')->sum('amount');
+        $totalMasuk = $todayTransactions->where('type', 'masuk')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
+        $totalKeluar = $todayTransactions->where('type', 'keluar')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
 
         // Top categories target date (top 4)
         $topCategories = $todayTransactions
@@ -67,8 +67,8 @@ class DashboardController extends Controller
             ->whereDate('created_at', '<=', $monthEnd)
             ->get();
 
-        $monthlyMasuk = $monthlyTransactions->where('type', 'masuk')->sum('amount');
-        $monthlyKeluar = $monthlyTransactions->where('type', 'keluar')->sum('amount');
+        $monthlyMasuk = $monthlyTransactions->where('type', 'masuk')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
+        $monthlyKeluar = $monthlyTransactions->where('type', 'keluar')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
 
         // Weekly summary (week of target date)
         $weekStart = $targetDate->copy()->startOfWeek();
@@ -79,8 +79,8 @@ class DashboardController extends Controller
             ->whereDate('created_at', '<=', $weekEnd)
             ->get();
 
-        $weeklyMasuk = $weeklyTransactions->where('type', 'masuk')->sum('amount');
-        $weeklyKeluar = $weeklyTransactions->where('type', 'keluar')->sum('amount');
+        $weeklyMasuk = $weeklyTransactions->where('type', 'masuk')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
+        $weeklyKeluar = $weeklyTransactions->where('type', 'keluar')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
 
         // 7-day chart data ending at target date
         $chartStart = $targetDate->copy()->subDays(6)->startOfDay();
@@ -102,8 +102,8 @@ class DashboardController extends Controller
 
             $chartData[] = [
                 'date' => $displayDate,
-                'masuk' => $dayTxs->where('type', 'masuk')->sum('amount'),
-                'keluar' => $dayTxs->where('type', 'keluar')->sum('amount'),
+                'masuk' => $dayTxs->where('type', 'masuk')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount'),
+                'keluar' => $dayTxs->where('type', 'keluar')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount'),
             ];
         }
 
