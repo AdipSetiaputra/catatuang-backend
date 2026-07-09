@@ -52,10 +52,18 @@ class DashboardController extends Controller
         $totalBalance = 0;
         foreach ($wallets as $wallet) {
             $nameLower = strtolower($wallet->name);
+            
+            // Do not let cash be negative for display
             if (in_array($nameLower, ['cash', 'tunai']) && $wallet->balance < 0) {
                 $wallet->balance = 0;
             }
-            $totalBalance += $wallet->balance;
+            
+            // Driver logic: do not subtract ShopeePay debt from Total Saldo (Liquid wealth)
+            if (str_contains($nameLower, 'shopee') && $wallet->balance < 0) {
+                $totalBalance += 0;
+            } else {
+                $totalBalance += $wallet->balance;
+            }
         }
 
         // Monthly summary (month of target date)
