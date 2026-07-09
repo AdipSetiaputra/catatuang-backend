@@ -203,7 +203,7 @@ PROMPT;
         );
 
     if ($response->failed()) {
-        abort($response->status(), $response->body());
+        throw new \Exception($this->getErrorMessage($response));
     }
 
     return $this->extractJson($response->json());
@@ -255,7 +255,7 @@ public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg
         );
 
     if ($response->failed()) {
-        abort($response->status(), $response->body());
+        throw new \Exception($this->getErrorMessage($response));
     }
 
     return $this->extractJson($response->json());
