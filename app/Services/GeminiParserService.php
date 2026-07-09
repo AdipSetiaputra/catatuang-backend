@@ -101,11 +101,16 @@ Output: {"intent":"transaction","jenis":"masuk","nominal":5000000,"kategori":"Ga
 Input: "masuk transfer BCA 10 ribu"
 Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lainnya","dompet":"BCA","item":"","platform":"","sumber":"","catatan":"Transfer masuk BCA Rp10.000"}
 
-Input: "tagih tunai shope 50 ribu ongkir 8 ribu"
-Output: [{"intent":"transaction","jenis":"keluar","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Tagih tunai Shopee Rp50.000"},{"intent":"transaction","jenis":"masuk","nominal":8000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"Ongkir","catatan":"Ongkir Shopee Rp8.000"}]
+ATURAN KHUSUS TAGIH TUNAI SHOPEE (KURIR COD):
+Jika kalimat berbunyi "tagih tunai shopee [TOTAL] ongkir [ONGKIR] lewat [DOMPET]":
+1. Buat transaksi MASUK (uang diterima dari pelanggan) sebesar [TOTAL] ke dompet [DOMPET] (jika tidak disebut, default "Cash").
+2. Buat transaksi KELUAR (potongan sistem) sebesar ([TOTAL] - [ONGKIR]) dari dompet "ShopeePay".
 
-Input: "tagih tunai shopee 30rb dan ongkir 5rb"
-Output: [{"intent":"transaction","jenis":"keluar","nominal":30000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Tagih tunai Shopee Rp30.000"},{"intent":"transaction","jenis":"masuk","nominal":5000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"Ongkir","catatan":"Ongkir Shopee Rp5.000"}]
+Input: "tagih tunai shopee 50 ribu ongkir 10 ribu"
+Output: [{"intent":"transaction","jenis":"masuk","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"Cash","item":"","platform":"","sumber":"Customer","catatan":"Terima tunai COD Rp50.000"},{"intent":"transaction","jenis":"keluar","nominal":40000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Potongan saldo ShopeePay (50rb - 10rb)"}]
+
+Input: "tagih tunai shopee 50 ribu ongkir 10 ribu pembayaran lewat dana"
+Output: [{"intent":"transaction","jenis":"masuk","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"Dana","item":"","platform":"","sumber":"Customer","catatan":"Terima tunai COD Rp50.000"},{"intent":"transaction","jenis":"keluar","nominal":40000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"","catatan":"Potongan saldo ShopeePay (50rb - 10rb)"}]
 
 Input: "recap hari ini"
 Output: {"intent":"recap"}
