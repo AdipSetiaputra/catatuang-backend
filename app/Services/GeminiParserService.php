@@ -197,7 +197,7 @@ PROMPT;
                 ],
                 'generationConfig' => [
                     'temperature' => 0.1,
-                    'maxOutputTokens' => 500,
+                    'maxOutputTokens' => 4000,
                 ],
             ]
         );
@@ -249,7 +249,7 @@ public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg
                 ],
                 'generationConfig' => [
                     'temperature' => 0.1,
-                    'maxOutputTokens' => 2000,
+                    'maxOutputTokens' => 4000,
                 ],
             ]
         );
