@@ -91,49 +91,107 @@ class TransactionController extends Controller
             ], 200);
         }
 
-        // Check if AI returned multiple transactions (array of objects)
+        // Ensure $parsed is an array of transactions for unified processing
+        $transactionsData = [];
+        $isMulti = false;
+        
         if (isset($parsed[0]) && is_array($parsed[0])) {
-            $user = $request->user();
-            $transactions = [];
+            $transactionsData = $parsed;
+            $isMulti = true;
+        } else {
+            // Validate required fields for single transaction
+            if (empty($parsed['jenis']) || !in_array($parsed['jenis'], ['masuk', 'keluar'])) {
+                return response()->json([
+                    'message' => 'Asep AI tidak bisa menentukan jenis transaksi (masuk/keluar). Coba tulis lebih jelas.',
+                ], 422);
+            }
 
-            DB::transaction(function () use ($parsed, $user, $validated, &$transactions) {
-                foreach ($parsed as $item) {
-                    if (empty($item['jenis']) || !in_array($item['jenis'], ['masuk', 'keluar'])) continue;
-                    if (empty($item['nominal']) || !is_numeric($item['nominal']) || $item['nominal'] <= 0) continue;
+            if (empty($parsed['nominal']) || !is_numeric($parsed['nominal']) || $parsed['nominal'] <= 0) {
+                return response()->json([
+                    'message' => 'Asep AI tidak bisa menentukan nominal transaksi. Coba sertakan angka yang jelas.',
+                ], 422);
+            }
+            $transactionsData = [$parsed];
+        }
 
-                    $category = $item['kategori'] ?? 'Lainnya';
-                    if (!in_array($category, self::VALID_CATEGORIES)) {
-                        $category = 'Lainnya';
+        $user = $request->user();
+        $transactions = [];
+
+        DB::transaction(function () use ($transactionsData, $user, $validated, &$transactions) {
+            foreach ($transactionsData as $item) {
+                if (empty($item['jenis']) || !in_array($item['jenis'], ['masuk', 'keluar'])) continue;
+                if (empty($item['nominal']) || !is_numeric($item['nominal']) || $item['nominal'] <= 0) continue;
+
+                $category = $item['kategori'] ?? 'Lainnya';
+                if (!in_array($category, self::VALID_CATEGORIES)) {
+                    $category = 'Lainnya';
+                }
+
+                $walletName = !empty(trim($item['dompet'] ?? '')) ? trim($item['dompet']) : 'Cash';
+                $wallet = $this->findOrCreateWallet($user, $walletName);
+
+                $transactionsToCreate = [];
+                
+                // Logic to split ShopeePay Topup into Debt Repayment vs Actual Income
+                if ($item['jenis'] === 'masuk' && ($item['sumber'] ?? '') === 'SHOPEE_TOPUP' && $wallet->balance < 0) {
+                    $debt = abs($wallet->balance);
+                    $nominal = (int) $item['nominal'];
+                    
+                    $repayment = min($nominal, $debt);
+                    $income = $nominal - $repayment;
+                    
+                    // 1. Debt repayment (won't count as revenue)
+                    $tx1 = $item;
+                    $tx1['nominal'] = $repayment;
+                    $tx1['sumber'] = 'SISTEM_TRANSFER'; 
+                    $tx1['catatan'] = ($item['catatan'] ?? '') . ' (Bayar Hutang)';
+                    $transactionsToCreate[] = $tx1;
+                    
+                    // 2. Remaining income (counts as revenue)
+                    if ($income > 0) {
+                        $tx2 = $item;
+                        $tx2['nominal'] = $income;
+                        $tx2['sumber'] = 'Pendapatan'; 
+                        $tx2['catatan'] = ($item['catatan'] ?? '') . ' (Sisa Pendapatan)';
+                        $transactionsToCreate[] = $tx2;
                     }
+                } else {
+                    // If no debt, ensure it counts as income
+                    if ($item['jenis'] === 'masuk' && ($item['sumber'] ?? '') === 'SHOPEE_TOPUP') {
+                        $item['sumber'] = 'Pendapatan';
+                    }
+                    $transactionsToCreate[] = $item;
+                }
 
-                    $walletName = !empty(trim($item['dompet'] ?? '')) ? trim($item['dompet']) : 'Cash';
-                    $wallet = $this->findOrCreateWallet($user, $walletName);
-
+                foreach ($transactionsToCreate as $txData) {
                     $tx = Transaction::create([
                         'user_id' => $user->id,
                         'wallet_id' => $wallet->id,
-                        'type' => $item['jenis'],
-                        'amount' => (int) $item['nominal'],
+                        'type' => $txData['jenis'],
+                        'amount' => (int) $txData['nominal'],
                         'category' => $category,
-                        'item' => $this->nullIfEmpty($item['item'] ?? ''),
-                        'platform' => $this->nullIfEmpty($item['platform'] ?? ''),
-                        'source' => $this->nullIfEmpty($item['sumber'] ?? ''),
-                        'note' => $item['catatan'] ?? null,
+                        'item' => $this->nullIfEmpty($txData['item'] ?? ''),
+                        'platform' => $this->nullIfEmpty($txData['platform'] ?? ''),
+                        'source' => $this->nullIfEmpty($txData['sumber'] ?? ''),
+                        'note' => $txData['catatan'] ?? null,
                         'raw_input' => $validated['text'],
                         'source_type' => 'chat',
                     ]);
 
-                    if ($item['jenis'] === 'masuk') {
-                        $wallet->increment('balance', (int) $item['nominal']);
+                    // Update wallet balance
+                    if ($txData['jenis'] === 'masuk') {
+                        $wallet->increment('balance', (int) $txData['nominal']);
                     } else {
-                        $wallet->decrement('balance', (int) $item['nominal']);
+                        $wallet->decrement('balance', (int) $txData['nominal']);
                     }
 
                     $tx->load('wallet');
                     $transactions[] = $tx;
                 }
-            });
+            }
+        });
 
+        if ($isMulti) {
             return response()->json([
                 'message' => count($transactions) . ' transaksi berhasil dicatat',
                 'transactions' => $transactions,
@@ -142,61 +200,10 @@ class TransactionController extends Controller
             ], 201);
         }
 
-        // Validate required fields from AI response
-        if (empty($parsed['jenis']) || !in_array($parsed['jenis'], ['masuk', 'keluar'])) {
-            return response()->json([
-                'message' => 'Asep AI tidak bisa menentukan jenis transaksi (masuk/keluar). Coba tulis lebih jelas.',
-            ], 422);
-        }
-
-        if (empty($parsed['nominal']) || !is_numeric($parsed['nominal']) || $parsed['nominal'] <= 0) {
-            return response()->json([
-                'message' => 'Asep AI tidak bisa menentukan nominal transaksi. Coba sertakan angka yang jelas.',
-            ], 422);
-        }
-
-        // Normalize category
-        $category = $parsed['kategori'] ?? 'Lainnya';
-        if (!in_array($category, self::VALID_CATEGORIES)) {
-            $category = 'Lainnya';
-        }
-
-        // Find or create wallet
-        $walletName = !empty(trim($parsed['dompet'] ?? '')) ? trim($parsed['dompet']) : 'Cash';
-        $user = $request->user();
-        $wallet = $this->findOrCreateWallet($user, $walletName);
-
-        // Save transaction in a DB transaction for atomicity
-        $transaction = DB::transaction(function () use ($user, $wallet, $parsed, $category, $validated) {
-            $transaction = Transaction::create([
-                'user_id' => $user->id,
-                'wallet_id' => $wallet->id,
-                'type' => $parsed['jenis'],
-                'amount' => (int) $parsed['nominal'],
-                'category' => $category,
-                'item' => $this->nullIfEmpty($parsed['item'] ?? ''),
-                'platform' => $this->nullIfEmpty($parsed['platform'] ?? ''),
-                'source' => $this->nullIfEmpty($parsed['sumber'] ?? ''),
-                'note' => $parsed['catatan'] ?? null,
-                'raw_input' => $validated['text'],
-                'source_type' => 'chat',
-            ]);
-
-            // Update wallet balance
-            if ($parsed['jenis'] === 'masuk') {
-                $wallet->increment('balance', (int) $parsed['nominal']);
-            } else {
-                $wallet->decrement('balance', (int) $parsed['nominal']);
-            }
-
-            return $transaction;
-        });
-
-        $transaction->load('wallet');
-
         return response()->json([
             'message' => 'Transaksi berhasil dicatat',
-            'transaction' => $transaction,
+            'transaction' => $transactions[0] ?? null,
+            'transactions' => $transactions,
             'parsed' => $parsed,
         ], 201);
     }

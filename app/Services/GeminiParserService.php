@@ -106,13 +106,13 @@ ATURAN KHUSUS TAGIH TUNAI SHOPEE (KURIR COD) & BAYAR HUTANG:
    - Buat MASUK sebesar [TOTAL] ke dompet [DOMPET] (default "Cash"). "sumber" isi "Customer" (Masuk sebagai Pendapatan kotor).
    - Buat KELUAR sebesar ([TOTAL] - [ONGKIR]) dari dompet "ShopeePay". "sumber" WAJIB diisi "SISTEM_TRANSFER" agar tidak dihitung sebagai pengeluaran di Dashboard.
 2. Jika kalimat bermaksud top up, bayar hutang, atau mengisi saldo ShopeePay (misal: "masuk shopepay 10 ribu" atau "top up shopeepay 10 ribu"):
-   - Buat MASUK sebesar nominal ke dompet tersebut, namun "sumber" WAJIB diisi "SISTEM_TRANSFER" agar tidak dihitung sebagai Pendapatan di Dashboard.
+   - Buat MASUK sebesar nominal ke dompet "ShopeePay". "sumber" diisi "SHOPEE_TOPUP" (sistem backend akan otomatis menghitung berapa yang jadi pendapatan vs bayar hutang berdasarkan saldo ShopeePay saat ini).
 
 Input: "tagih tunai shopee 50 ribu ongkir 10 ribu"
 Output: [{"intent":"transaction","jenis":"masuk","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"Cash","item":"","platform":"","sumber":"Customer","catatan":"Terima tunai COD Rp50.000"},{"intent":"transaction","jenis":"keluar","nominal":40000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Potongan saldo ShopeePay"}]
 
 Input: "masuk shopepay 10 ribu"
-Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lainnya","dompet":"ShopeePay","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Isi saldo ShopeePay"}
+Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"SHOPEE_TOPUP","catatan":"Masuk saldo ShopeePay"}
 
 Input: "recap hari ini"
 Output: {"intent":"recap"}
