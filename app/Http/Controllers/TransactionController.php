@@ -342,9 +342,20 @@ class TransactionController extends Controller
             $query->where('type', $request->type);
         }
 
-        $transactions = $query->orderBy('created_at', 'desc')->paginate(30);
+        $summaryQuery = clone $query;
+        $totalMasuk = (clone $summaryQuery)->where('type', 'masuk')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
+        $totalKeluar = (clone $summaryQuery)->where('type', 'keluar')->where('source', '!=', 'SISTEM_TRANSFER')->sum('amount');
 
-        return response()->json($transactions);
+        $transactions = $query->orderBy('created_at', 'desc')->paginate(30);
+        
+        $response = $transactions->toArray();
+        $response['summary'] = [
+            'total_masuk' => (int) $totalMasuk,
+            'total_keluar' => (int) $totalKeluar,
+            'net' => (int) ($totalMasuk - $totalKeluar),
+        ];
+
+        return response()->json($response);
     }
 
     /**
