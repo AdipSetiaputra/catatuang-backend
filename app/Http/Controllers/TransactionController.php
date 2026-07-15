@@ -132,8 +132,44 @@ class TransactionController extends Controller
 
                 $transactionsToCreate = [];
                 
+                if (($item['sumber'] ?? '') === 'COD_SHOPEE') {
+                    $totalCash = (int) $item['nominal'];
+                    $ongkir = (int) ($item['item'] ?? 0);
+                    $potongan = max(0, $totalCash - $ongkir);
+                    
+                    $shopeeWallet = $this->findOrCreateWallet($user, 'ShopeePay');
+                    $availableShopeeBalance = max(0, $shopeeWallet->balance);
+                    
+                    $transferAmount = min($potongan, $availableShopeeBalance);
+                    $pendapatanAmount = $totalCash - $transferAmount;
+
+                    if ($pendapatanAmount > 0) {
+                        $tx1 = $item;
+                        $tx1['nominal'] = $pendapatanAmount;
+                        $tx1['sumber'] = 'Pendapatan';
+                        $tx1['catatan'] = 'Pendapatan COD & Ongkir';
+                        $transactionsToCreate[] = ['wallet' => $wallet, 'data' => $tx1];
+                    }
+                    
+                    if ($transferAmount > 0) {
+                        $tx2 = $item;
+                        $tx2['nominal'] = $transferAmount;
+                        $tx2['sumber'] = 'SISTEM_TRANSFER';
+                        $tx2['catatan'] = 'Pindah Saldo ShopeePay ke Cash';
+                        $transactionsToCreate[] = ['wallet' => $wallet, 'data' => $tx2];
+                    }
+                    
+                    if ($potongan > 0) {
+                        $tx3 = $item;
+                        $tx3['jenis'] = 'keluar';
+                        $tx3['nominal'] = $potongan;
+                        $tx3['sumber'] = 'SISTEM_TRANSFER';
+                        $tx3['catatan'] = 'Potongan Saldo ShopeePay (COD)';
+                        $transactionsToCreate[] = ['wallet' => $shopeeWallet, 'data' => $tx3];
+                    }
+                }
                 // Logic to split ShopeePay Topup into Debt Repayment vs Actual Income
-                if ($item['jenis'] === 'masuk' && ($item['sumber'] ?? '') === 'SHOPEE_TOPUP' && $wallet->balance < 0) {
+                else if ($item['jenis'] === 'masuk' && ($item['sumber'] ?? '') === 'SHOPEE_TOPUP' && $wallet->balance < 0) {
                     $debt = abs($wallet->balance);
                     $nominal = (int) $item['nominal'];
                     
@@ -145,7 +181,7 @@ class TransactionController extends Controller
                     $tx1['nominal'] = $repayment;
                     $tx1['sumber'] = 'SISTEM_TRANSFER'; 
                     $tx1['catatan'] = ($item['catatan'] ?? '') . ' (Bayar Hutang)';
-                    $transactionsToCreate[] = $tx1;
+                    $transactionsToCreate[] = ['wallet' => $wallet, 'data' => $tx1];
                     
                     // 2. Remaining income (counts as revenue)
                     if ($income > 0) {
@@ -153,20 +189,23 @@ class TransactionController extends Controller
                         $tx2['nominal'] = $income;
                         $tx2['sumber'] = 'Pendapatan'; 
                         $tx2['catatan'] = ($item['catatan'] ?? '') . ' (Sisa Pendapatan)';
-                        $transactionsToCreate[] = $tx2;
+                        $transactionsToCreate[] = ['wallet' => $wallet, 'data' => $tx2];
                     }
                 } else {
                     // If no debt, ensure it counts as income
                     if ($item['jenis'] === 'masuk' && ($item['sumber'] ?? '') === 'SHOPEE_TOPUP') {
                         $item['sumber'] = 'Pendapatan';
                     }
-                    $transactionsToCreate[] = $item;
+                    $transactionsToCreate[] = ['wallet' => $wallet, 'data' => $item];
                 }
 
-                foreach ($transactionsToCreate as $txData) {
+                foreach ($transactionsToCreate as $txObj) {
+                    $txData = $txObj['data'];
+                    $targetWallet = $txObj['wallet'];
+
                     $tx = Transaction::create([
                         'user_id' => $user->id,
-                        'wallet_id' => $wallet->id,
+                        'wallet_id' => $targetWallet->id,
                         'type' => $txData['jenis'],
                         'amount' => (int) $txData['nominal'],
                         'category' => $category,
@@ -180,9 +219,9 @@ class TransactionController extends Controller
 
                     // Update wallet balance
                     if ($txData['jenis'] === 'masuk') {
-                        $wallet->increment('balance', (int) $txData['nominal']);
+                        $targetWallet->increment('balance', (int) $txData['nominal']);
                     } else {
-                        $wallet->decrement('balance', (int) $txData['nominal']);
+                        $targetWallet->decrement('balance', (int) $txData['nominal']);
                     }
 
                     $tx->load('wallet');

@@ -103,13 +103,18 @@ Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lain
 
 ATURAN KHUSUS TAGIH TUNAI SHOPEE (KURIR COD) & BAYAR HUTANG:
 1. Jika kalimat berbunyi "tagih tunai shopee [TOTAL] ongkir [ONGKIR] lewat [DOMPET]":
-   - Buat MASUK sebesar [TOTAL] ke dompet [DOMPET] (default "Cash"). "sumber" isi "Customer" (Masuk sebagai Pendapatan kotor).
-   - Buat KELUAR sebesar ([TOTAL] - [ONGKIR]) dari dompet "ShopeePay". "sumber" WAJIB diisi "SISTEM_TRANSFER" agar tidak dihitung sebagai pengeluaran di Dashboard.
+   - Hasilkan SATU transaksi saja dengan:
+     "jenis": "masuk",
+     "nominal": [TOTAL],
+     "kategori": "Pendapatan Usaha",
+     "dompet": [DOMPET] (default "Cash"),
+     "sumber": "COD_SHOPEE",
+     "item": "[ONGKIR]" (Simpan nilai ongkir berupa angka ke dalam field item. Contoh: "8000")
 2. Jika kalimat bermaksud top up, bayar hutang, atau mengisi saldo ShopeePay (misal: "masuk shopepay 10 ribu" atau "top up shopeepay 10 ribu"):
    - Buat MASUK sebesar nominal ke dompet "ShopeePay". "sumber" diisi "SHOPEE_TOPUP" (sistem backend akan otomatis menghitung berapa yang jadi pendapatan vs bayar hutang berdasarkan saldo ShopeePay saat ini).
 
 Input: "tagih tunai shopee 50 ribu ongkir 10 ribu"
-Output: [{"intent":"transaction","jenis":"masuk","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"Cash","item":"","platform":"","sumber":"Customer","catatan":"Terima tunai COD Rp50.000"},{"intent":"transaction","jenis":"keluar","nominal":40000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Potongan saldo ShopeePay"}]
+Output: {"intent":"transaction","jenis":"masuk","nominal":50000,"kategori":"Pendapatan Usaha","dompet":"Cash","item":"10000","platform":"","sumber":"COD_SHOPEE","catatan":"Terima tunai COD Rp50.000"}
 
 Input: "masuk shopepay 10 ribu"
 Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Pendapatan Usaha","dompet":"ShopeePay","item":"","platform":"","sumber":"SHOPEE_TOPUP","catatan":"Masuk saldo ShopeePay"}
