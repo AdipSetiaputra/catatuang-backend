@@ -463,16 +463,48 @@ class TransactionController extends Controller
     {
         $transaction = $request->user()->transactions()->findOrFail($id);
 
-        DB::transaction(function () use ($transaction) {
-            // Revert wallet balance
-            $wallet = $transaction->wallet;
-            if ($transaction->type === 'masuk') {
-                $wallet->decrement('balance', $transaction->amount);
-            } else {
-                $wallet->increment('balance', $transaction->amount);
-            }
+        $relatedTransactions = collect([$transaction]);
 
-            $transaction->delete();
+        if ($transaction->raw_input) {
+            $isCOD = ($transaction->note === 'Pendapatan COD & Ongkir' || $transaction->note === 'Potongan Saldo ShopeePay (COD)' || $transaction->note === 'Pindah Saldo ShopeePay ke Cash');
+            $isTopup = str_ends_with($transaction->note ?? '', '(Sisa Pendapatan)') || str_ends_with($transaction->note ?? '', '(Bayar Hutang)');
+
+            if ($isCOD || $isTopup) {
+                $query = $request->user()->transactions()
+                    ->where('raw_input', $transaction->raw_input)
+                    ->where('created_at', '>=', $transaction->created_at->subSeconds(2))
+                    ->where('created_at', '<=', $transaction->created_at->addSeconds(2));
+                
+                if ($isCOD) {
+                    $query->whereIn('note', [
+                        'Pendapatan COD & Ongkir',
+                        'Potongan Saldo ShopeePay (COD)',
+                        'Pindah Saldo ShopeePay ke Cash'
+                    ]);
+                } else {
+                    $query->where(function($q) {
+                        $q->where('note', 'like', '%(Sisa Pendapatan)')
+                          ->orWhere('note', 'like', '%(Bayar Hutang)');
+                    });
+                }
+
+                $related = $query->get();
+                $relatedTransactions = $relatedTransactions->merge($related)->unique('id');
+            }
+        }
+
+        DB::transaction(function () use ($relatedTransactions) {
+            foreach ($relatedTransactions as $tx) {
+                // Revert wallet balance
+                $wallet = $tx->wallet;
+                if ($tx->type === 'masuk') {
+                    $wallet->decrement('balance', $tx->amount);
+                } else {
+                    $wallet->increment('balance', $tx->amount);
+                }
+
+                $tx->delete();
+            }
         });
 
         return response()->json([
