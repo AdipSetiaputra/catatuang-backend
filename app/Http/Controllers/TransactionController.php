@@ -383,11 +383,11 @@ class TransactionController extends Controller
 
         $summaryQuery = clone $query;
         $totalMasuk = (clone $summaryQuery)->where('type', 'masuk')->where(function($q) {
-            $q->whereNotIn('source', ['SISTEM_TRANSFER', 'MODAL'])->orWhereNull('source');
+            $q->whereNotIn('source', ['SISTEM_TRANSFER', 'MODAL', 'MUTASI'])->orWhereNull('source');
         })->sum('amount');
         
         $totalKeluar = (clone $summaryQuery)->where('type', 'keluar')->where(function($q) {
-            $q->whereNotIn('source', ['SISTEM_TRANSFER', 'MODAL'])->orWhereNull('source');
+            $q->whereNotIn('source', ['SISTEM_TRANSFER', 'MODAL', 'MUTASI'])->orWhereNull('source');
         })->sum('amount');
 
         $transactions = $query->orderBy('created_at', 'desc')->paginate(30);

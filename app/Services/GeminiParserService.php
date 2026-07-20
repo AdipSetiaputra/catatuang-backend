@@ -105,10 +105,10 @@ Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lain
 ATURAN KHUSUS TUKAR / TRANSFER ANTAR DOMPET:
 Jika kalimat bermaksud memindahkan saldo/tukar uang antar dompet (misal: "tukar shopeepay 26k ke cash" atau "pindah bca ke gopay 50 ribu"):
 - Balas dengan ARRAY berisi DUA transaksi:
-  1. "jenis": "keluar", "dompet": [Dompet Asal], "nominal": [Nominal], "sumber": "SISTEM_TRANSFER", "catatan": "Pindah saldo ke [Dompet Tujuan]"
+  1. "jenis": "keluar", "dompet": [Dompet Asal], "nominal": [Nominal], "sumber": "MUTASI", "catatan": "Pindah saldo ke [Dompet Tujuan]"
   2. "jenis": "masuk", "dompet": [Dompet Tujuan], "nominal": [Nominal], "sumber": "SISTEM_TRANSFER", "catatan": "Terima saldo dari [Dompet Asal]"
 Contoh Input: "tukar shopeepay 26k ke cash"
-Output: [{"intent":"transaction","jenis":"keluar","nominal":26000,"kategori":"Lainnya","dompet":"ShopeePay","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Pindah saldo ke Cash"},{"intent":"transaction","jenis":"masuk","nominal":26000,"kategori":"Lainnya","dompet":"Cash","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Terima saldo dari ShopeePay"}]
+Output: [{"intent":"transaction","jenis":"keluar","nominal":26000,"kategori":"Lainnya","dompet":"ShopeePay","item":"","platform":"","sumber":"MUTASI","catatan":"Pindah saldo ke Cash"},{"intent":"transaction","jenis":"masuk","nominal":26000,"kategori":"Lainnya","dompet":"Cash","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Terima saldo dari ShopeePay"}]
 
 
 ATURAN KHUSUS TAGIH TUNAI SHOPEE (KURIR COD) & BAYAR HUTANG:
