@@ -86,6 +86,7 @@ PENTING: Cek nama bank/dompet SPESIFIK terlebih dahulu sebelum fallback ke gener
 
 "sumber" (opsional, kosongkan "" jika tidak ada)
 - Asal pemasukan jika BUKAN gaji, contoh: "Orderan", "Jualan", "Transfer teman"
+- KHUSUS: Jika kalimat mengandung kata "modal", WAJIB diisi dengan "MODAL"
 
 "catatan" (wajib)
 - Ringkasan satu kalimat singkat dan natural dari transaksi ini, dibuat dari input asli. Maksimal 10 kata.
@@ -100,6 +101,15 @@ Output: {"intent":"transaction","jenis":"masuk","nominal":5000000,"kategori":"Ga
 
 Input: "masuk transfer BCA 10 ribu"
 Output: {"intent":"transaction","jenis":"masuk","nominal":10000,"kategori":"Lainnya","dompet":"BCA","item":"","platform":"","sumber":"","catatan":"Transfer masuk BCA Rp10.000"}
+
+ATURAN KHUSUS TUKAR / TRANSFER ANTAR DOMPET:
+Jika kalimat bermaksud memindahkan saldo/tukar uang antar dompet (misal: "tukar shopeepay 26k ke cash" atau "pindah bca ke gopay 50 ribu"):
+- Balas dengan ARRAY berisi DUA transaksi:
+  1. "jenis": "keluar", "dompet": [Dompet Asal], "nominal": [Nominal], "sumber": "SISTEM_TRANSFER", "catatan": "Pindah saldo ke [Dompet Tujuan]"
+  2. "jenis": "masuk", "dompet": [Dompet Tujuan], "nominal": [Nominal], "sumber": "SISTEM_TRANSFER", "catatan": "Terima saldo dari [Dompet Asal]"
+Contoh Input: "tukar shopeepay 26k ke cash"
+Output: [{"intent":"transaction","jenis":"keluar","nominal":26000,"kategori":"Lainnya","dompet":"ShopeePay","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Pindah saldo ke Cash"},{"intent":"transaction","jenis":"masuk","nominal":26000,"kategori":"Lainnya","dompet":"Cash","item":"","platform":"","sumber":"SISTEM_TRANSFER","catatan":"Terima saldo dari ShopeePay"}]
+
 
 ATURAN KHUSUS TAGIH TUNAI SHOPEE (KURIR COD) & BAYAR HUTANG:
 1. Jika kalimat berbunyi "tagih tunai shopee [TOTAL] ongkir [ONGKIR] lewat [DOMPET]":
